@@ -3,7 +3,7 @@ name: Build mpv-lazy release
 on:
   push:
     tags:
-      - '20??????*'
+      - '20*'
   schedule:
     # GitHub cron is UTC: Sunday 10:00 Asia/Shanghai weekly pre-release.
     - cron: '0 2 * * 0'
@@ -133,7 +133,10 @@ jobs:
             fi
           else
             version="$REF_NAME"
-            if [[ "$version" =~ (pre|alpha|beta|rc) ]]; then
+            if [[ ! "$version" =~ ^20[0-9]{6}(-pre|-alpha|-beta|-rc)?$ ]]; then
+              echo "Ignoring unsupported release tag: $version"
+              skip=true
+            elif [[ "$version" =~ (pre|alpha|beta|rc) ]]; then
               kind=pre
             fi
           fi
