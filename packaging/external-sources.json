@@ -1,0 +1,50 @@
+{
+  "description": "External sources used when assembling a release. The checked-out fork remains the source of truth for the common mpv configuration.",
+  "common_config": {
+    "uosc": {
+      "repository": "tomasklaen/uosc",
+      "asset": "uosc.zip",
+      "copy": [
+        "scripts/uosc/bin/ziggy-windows.exe",
+        "scripts/uosc/bin/ziggy-linux"
+      ]
+    }
+  },
+  "windows_runtime": {
+    "mpv": {
+      "repository": "zhongfly/mpv-winbuild",
+      "asset_pattern": "mpv-x86_64-v3-*.7z"
+    },
+    "umpv": {
+      "repository": "LumeCraft-Labs/rumpv",
+      "asset": "umpv.exe"
+    },
+    "yt_dlp": {
+      "repository": "yt-dlp/yt-dlp",
+      "asset": "yt-dlp.exe"
+    },
+    "vapoursynth": {
+      "repository": "vapoursynth/vapoursynth",
+      "asset_pattern": "VapourSynth64-Portable-*.zip"
+    },
+    "k7sfunc": {
+      "repository": "LumeCraft-Labs/K7sfunc",
+      "asset_pattern": "k7sfunc-*.whl"
+    },
+    "vs_mlrt": {
+      "repository": "AmusementClub/vs-mlrt",
+      "standard_assets": [
+        "scripts.*.7z",
+        "VSORT-Windows-x64.*.7z",
+        "VSOV-Windows-x64.*.7z",
+        "VSNCNN-Windows-x64.*.7z",
+        "models.*.7z"
+      ],
+      "vsnv_assets": [
+        "vsmlrt-windows-x64-cuda.*.7z.*",
+        "VSTRT-Windows-x64.*.7z",
+        "VSTRT-RTX-Windows-x64.*.7z"
+      ]
+    }
+  }
+}

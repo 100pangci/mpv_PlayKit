@@ -5,7 +5,7 @@ usage() {
     cat <<'EOF'
 Usage: build-linux-config.sh \
   --source-root PATH \
-  --standard-config-root PATH \
+  --common-config-root PATH \
   --platform-patch PATH \
   --output-directory PATH \
   --version VERSION
@@ -13,7 +13,7 @@ EOF
 }
 
 SOURCE_ROOT=
-STANDARD_CONFIG_ROOT=
+COMMON_CONFIG_ROOT=
 PLATFORM_PATCH=
 OUTPUT_DIRECTORY=
 VERSION=
@@ -21,7 +21,7 @@ VERSION=
 while (($# > 0)); do
     case "$1" in
         --source-root) SOURCE_ROOT=$2; shift 2 ;;
-        --standard-config-root) STANDARD_CONFIG_ROOT=$2; shift 2 ;;
+        --common-config-root|--standard-config-root) COMMON_CONFIG_ROOT=$2; shift 2 ;;
         --platform-patch) PLATFORM_PATCH=$2; shift 2 ;;
         --output-directory) OUTPUT_DIRECTORY=$2; shift 2 ;;
         --version) VERSION=$2; shift 2 ;;
@@ -30,18 +30,18 @@ while (($# > 0)); do
     esac
 done
 
-if [[ -z "$SOURCE_ROOT" || -z "$STANDARD_CONFIG_ROOT" || -z "$PLATFORM_PATCH" || -z "$OUTPUT_DIRECTORY" || -z "$VERSION" ]]; then
+if [[ -z "$SOURCE_ROOT" || -z "$COMMON_CONFIG_ROOT" || -z "$PLATFORM_PATCH" || -z "$OUTPUT_DIRECTORY" || -z "$VERSION" ]]; then
     usage >&2
     exit 2
 fi
 
 SOURCE_ROOT=$(cd -- "$SOURCE_ROOT" && pwd)
-STANDARD_CONFIG_ROOT=$(cd -- "$STANDARD_CONFIG_ROOT" && pwd)
+COMMON_CONFIG_ROOT=$(cd -- "$COMMON_CONFIG_ROOT" && pwd)
 PLATFORM_PATCH=$(cd -- "$(dirname -- "$PLATFORM_PATCH")" && pwd)/$(basename -- "$PLATFORM_PATCH")
 OUTPUT_DIRECTORY=$(mkdir -p "$OUTPUT_DIRECTORY" && cd -- "$OUTPUT_DIRECTORY" && pwd)
 
-if [[ ! -d "$STANDARD_CONFIG_ROOT" ]]; then
-    echo "The standard portable_config was not found: $STANDARD_CONFIG_ROOT" >&2
+if [[ ! -d "$COMMON_CONFIG_ROOT/portable_config" ]]; then
+    echo "The common portable_config was not found: $COMMON_CONFIG_ROOT/portable_config" >&2
     exit 1
 fi
 if [[ ! -f "$PLATFORM_PATCH" ]]; then
@@ -61,13 +61,16 @@ WORK_DIRECTORY="$OUTPUT_DIRECTORY/_work/linux-config/mpv-lazy"
 rm -rf "$OUTPUT_DIRECTORY/_work"
 mkdir -p "$WORK_DIRECTORY"
 
-cp -a "$STANDARD_CONFIG_ROOT" "$WORK_DIRECTORY/portable_config"
+cp -a "$COMMON_CONFIG_ROOT/portable_config" "$WORK_DIRECTORY/portable_config"
 (
     cd -- "$WORK_DIRECTORY/portable_config"
     patch --batch --forward --strip=1 < "$PLATFORM_PATCH"
 )
 cp -a "$SOURCE_ROOT/packaging/linux/README.txt" "$WORK_DIRECTORY/README.txt"
 cp -a "$SOURCE_ROOT/LICENSE.MD" "$WORK_DIRECTORY/LICENSE.MD"
+if [[ -f "$COMMON_CONFIG_ROOT/EXTERNAL-SOURCES.txt" ]]; then
+    cp -a "$COMMON_CONFIG_ROOT/EXTERNAL-SOURCES.txt" "$WORK_DIRECTORY/EXTERNAL-SOURCES.txt"
+fi
 
 tar -C "$(dirname -- "$WORK_DIRECTORY")" \
     --sort=name \
@@ -79,7 +82,7 @@ tar -C "$(dirname -- "$WORK_DIRECTORY")" \
 metadata=(
     "release=$VERSION"
     "source_commit=$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
-    'standard_config=packaging/portable_config'
+    'common_config=packaging/portable_config plus external source overlay'
     'platform_patch=packaging/linux.patch'
     "platform_patch_sha256=$(sha256sum "$PLATFORM_PATCH" | cut -d' ' -f1)"
     'contents=portable_config-only'

@@ -28,9 +28,10 @@ _从萌新到大白，<s>用前嫌麻烦</s> 用后真香_
 ## Linux 配置包
 
 GitHub Actions 也会随同 Windows 发布 Linux 配置包。仓库中的
-`packaging/portable_config` 是 Windows/Linux 共用的 59 个标准配置文件，Linux 产物
-只额外应用 `packaging/linux.patch`；播放器和其它运行时由用户按发行版自行安装，例如
-Fedora、RHEL 等系统可以先执行：
+`packaging/portable_config` 是 Windows/Linux 共用的标准配置来源。构建时先从 fork
+复制这组配置，再从原始项目取得需要的外部辅助文件，最后 Windows 应用
+`packaging/windows.patch`、Linux 应用 `packaging/linux.patch`。播放器和 Linux 的其它
+运行时由用户按发行版自行安装，例如 Fedora、RHEL 等系统可以先执行：
 
 ```bash
 sudo dnf install mpv yt-dlp
@@ -42,10 +43,10 @@ sudo dnf install mpv yt-dlp
 ## 自动发布
 
 `.github/workflows/build-release.yml` 会在每周日生成一次 GitHub pre-release，并在每月
-1 日生成一次正式 release。Windows 发布原有的 noVS、标准版和 vsNV 分卷；Linux 发布
-配置包，不捆绑播放器二进制。构建基线固定使用 `20260510`，Windows 先应用
-`packaging/windows.patch`，再组合从外部 release 下载的 mpv、umpv 与 yt-dlp；这些
-版本也可以在手动运行时覆盖。
+1 日生成一次正式 release。Windows 发布 noVS、标准版和 vsNV 叠加包；Linux 发布配置
+包，不捆绑播放器二进制。Windows 的 mpv、umpv、yt-dlp、VapourSynth、K7sfunc 和
+vs-mlrt 均从各自的原始项目 release 下载，手动运行时可以覆盖版本来源；构建记录会
+写入每个 release 的元数据文件。
 
 ## 预览
 

@@ -5,46 +5,54 @@ on:
     tags:
       - '20*'
   schedule:
-    # GitHub cron is UTC: Sunday 10:00 Asia/Shanghai weekly pre-release.
+    # Sunday 10:00 Asia/Shanghai: preview release.
     - cron: '0 2 * * 0'
-    # GitHub cron is UTC: first day of each month, 12:00 Asia/Shanghai stable release.
+    # First day of each month, 12:00 Asia/Shanghai: stable release.
     - cron: '0 4 1 * *'
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Release tag to create, for example 20260908
+        description: Release tag, for example 20260908
         required: true
         type: string
       release_type:
-        description: GitHub Release channel for a manual run
+        description: Release channel
         required: true
         default: pre
         type: choice
-        options:
-          - pre
-          - stable
-      base_release:
-        description: Existing full Windows mpv-lazy release used as the template
-        required: true
-        default: '20260510'
-        type: string
+        options: [pre, stable]
       mpv_release:
         description: mpv-winbuild release tag, or latest
         required: true
         default: latest
         type: string
       rumpv_release:
-        description: rumpv release tag providing Windows umpv.exe
+        description: rumpv release tag, or latest
         required: true
-        default: '1.0.3'
+        default: latest
         type: string
       ytdlp_release:
         description: yt-dlp release tag, or latest
         required: true
         default: latest
         type: string
+      uosc_release:
+        description: uosc release tag, or latest
+        required: true
+        default: latest
+        type: string
+      vapoursynth_release:
+        description: VapourSynth release tag, or latest
+        required: true
+        default: latest
+        type: string
+      vsmlrt_release:
+        description: vs-mlrt release tag, or latest
+        required: true
+        default: latest
+        type: string
       include_vsnv:
-        description: Download and republish the two large Windows vsNV volumes
+        description: Build the large NVIDIA VS overlay
         required: true
         default: true
         type: boolean
@@ -57,14 +65,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BASE_REPOSITORY: hooke007/mpv_PlayKit
-  BASE_RELEASE_DEFAULT: '20260510'
   MPV_REPOSITORY: zhongfly/mpv-winbuild
   RUMPV_REPOSITORY: LumeCraft-Labs/rumpv
   YTDLP_REPOSITORY: yt-dlp/yt-dlp
-  MPV_RELEASE: ${{ inputs.mpv_release || 'latest' }}
-  RUMPV_RELEASE: ${{ inputs.rumpv_release || '1.0.3' }}
-  YTDLP_RELEASE: ${{ inputs.ytdlp_release || 'latest' }}
+  UOSC_REPOSITORY: tomasklaen/uosc
+  VAPOURSYNTH_REPOSITORY: vapoursynth/vapoursynth
+  K7SFUNC_REPOSITORY: LumeCraft-Labs/K7sfunc
+  VSMLRT_REPOSITORY: AmusementClub/vs-mlrt
 
 jobs:
   resolve:
@@ -72,25 +79,33 @@ jobs:
     outputs:
       version: ${{ steps.identity.outputs.version }}
       kind: ${{ steps.identity.outputs.kind }}
-      base_release: ${{ steps.identity.outputs.base_release }}
       include_vsnv: ${{ steps.identity.outputs.include_vsnv }}
+      mpv_release: ${{ steps.identity.outputs.mpv_release }}
+      rumpv_release: ${{ steps.identity.outputs.rumpv_release }}
+      ytdlp_release: ${{ steps.identity.outputs.ytdlp_release }}
+      uosc_release: ${{ steps.identity.outputs.uosc_release }}
+      vapoursynth_release: ${{ steps.identity.outputs.vapoursynth_release }}
+      vsmlrt_release: ${{ steps.identity.outputs.vsmlrt_release }}
       skip: ${{ steps.identity.outputs.skip }}
     steps:
       - name: Resolve release identity
         id: identity
         shell: bash
         env:
-          DEFAULT_BASE_RELEASE: ${{ env.BASE_RELEASE_DEFAULT }}
           EVENT_NAME: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
           INPUT_TAG: ${{ inputs.release_tag }}
           INPUT_TYPE: ${{ inputs.release_type }}
-          INPUT_BASE: ${{ inputs.base_release }}
           INPUT_INCLUDE_VSNV: ${{ inputs.include_vsnv }}
+          INPUT_MPV: ${{ inputs.mpv_release }}
+          INPUT_RUMPV: ${{ inputs.rumpv_release }}
+          INPUT_YTDLP: ${{ inputs.ytdlp_release }}
+          INPUT_UOSC: ${{ inputs.uosc_release }}
+          INPUT_VAPOURSYNTH: ${{ inputs.vapoursynth_release }}
+          INPUT_VSMLRT: ${{ inputs.vsmlrt_release }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-
           today="$(date -u +%Y%m%d)"
           day="${today:6:2}"
           kind=stable
@@ -100,11 +115,7 @@ jobs:
           if [[ "$EVENT_NAME" == schedule ]]; then
             case "$SCHEDULE" in
               '0 2 * * 0')
-                # The monthly stable release owns the date when Sunday is also
-                # the first day of a month.
-                if [[ "$day" == 01 ]]; then
-                  skip=true
-                fi
+                [[ "$day" == 01 ]] && skip=true
                 kind=pre
                 version="${today}-pre"
                 ;;
@@ -112,25 +123,13 @@ jobs:
                 kind=stable
                 version="$today"
                 ;;
-              *)
-                echo "Unknown schedule: $SCHEDULE" >&2
-                exit 1
-                ;;
+              *) echo "Unknown schedule: $SCHEDULE" >&2; exit 1 ;;
             esac
           elif [[ "$EVENT_NAME" == workflow_dispatch ]]; then
-            if [[ -z "$INPUT_TAG" ]]; then
-              echo 'release_tag is required for a manual run' >&2
-              exit 1
-            fi
+            [[ -n "$INPUT_TAG" ]] || { echo 'release_tag is required' >&2; exit 1; }
             version="$INPUT_TAG"
-            if [[ "$INPUT_TYPE" == stable ]]; then
-              kind=stable
-            else
-              kind=pre
-            fi
-            if [[ "$INPUT_INCLUDE_VSNV" == false ]]; then
-              include_vsnv=false
-            fi
+            [[ "$INPUT_TYPE" == stable ]] && kind=stable || kind=pre
+            [[ "$INPUT_INCLUDE_VSNV" == false ]] && include_vsnv=false
           else
             version="$REF_NAME"
             if [[ ! "$version" =~ ^20[0-9]{6}(-pre|-alpha|-beta|-rc)?$ ]]; then
@@ -141,238 +140,184 @@ jobs:
             fi
           fi
 
-          base_release="$INPUT_BASE"
-          if [[ -z "$base_release" ]]; then
-            # The committed common config was extracted from this baseline;
-            # it remains the package shell for the Windows variants.
-            base_release="$DEFAULT_BASE_RELEASE"
-          fi
-          if [[ -z "$base_release" ]]; then
-            echo 'The base release tag is empty' >&2
-            exit 1
-          fi
-
           {
             echo "version=$version"
             echo "kind=$kind"
-            echo "base_release=$base_release"
             echo "include_vsnv=$include_vsnv"
+            echo "mpv_release=${INPUT_MPV:-latest}"
+            echo "rumpv_release=${INPUT_RUMPV:-latest}"
+            echo "ytdlp_release=${INPUT_YTDLP:-latest}"
+            echo "uosc_release=${INPUT_UOSC:-latest}"
+            echo "vapoursynth_release=${INPUT_VAPOURSYNTH:-latest}"
+            echo "vsmlrt_release=${INPUT_VSMLRT:-latest}"
             echo "skip=$skip"
           } >> "$GITHUB_OUTPUT"
-          echo "version=$version kind=$kind base_release=$base_release include_vsnv=$include_vsnv skip=$skip"
 
       - name: Create draft release
         if: steps.identity.outputs.skip != 'true'
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.identity.outputs.version }}
           RELEASE_KIND: ${{ steps.identity.outputs.kind }}
         run: |
           set -euo pipefail
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $RELEASE_TAG already exists; assets will be replaced as needed."
-            exit 0
-          fi
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then exit 0; fi
+          args=(release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "mpv-lazy $RELEASE_TAG" --generate-notes --draft)
+          [[ "$RELEASE_KIND" == pre ]] && args+=(--prerelease)
+          gh "${args[@]}"
 
-          arguments=(
-            release create "$RELEASE_TAG"
-            --repo "$GITHUB_REPOSITORY"
-            --target "$GITHUB_SHA"
-            --title "mpv-lazy $RELEASE_TAG"
-            --generate-notes
-            --draft
-          )
-          if [[ "$RELEASE_KIND" == pre ]]; then
-            arguments+=(--prerelease)
-          fi
-          gh "${arguments[@]}"
+  build-common:
+    needs: resolve
+    if: needs.resolve.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Assemble common configuration
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UOSC_RELEASE: ${{ needs.resolve.outputs.uosc_release }}
+        run: |
+          set -euo pipefail
+          bash packaging/build-common-config.sh \
+            --source-root "$GITHUB_WORKSPACE" \
+            --standard-config-root "$GITHUB_WORKSPACE/packaging/portable_config" \
+            --output-directory "$GITHUB_WORKSPACE/common-config" \
+            --uosc-repository "$UOSC_REPOSITORY" \
+            --uosc-release "$UOSC_RELEASE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: common-config
+          path: common-config
+          if-no-files-found: error
+          retention-days: 1
 
   build-windows:
-    needs: resolve
+    needs: [resolve, build-common]
     if: needs.resolve.outputs.skip != 'true'
     runs-on: windows-latest
     steps:
-      - name: Checkout source repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Download Windows external release assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: common-config
+          path: common-config
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download original project assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE_RELEASE: ${{ needs.resolve.outputs.base_release }}
+          MPV_RELEASE: ${{ needs.resolve.outputs.mpv_release }}
+          RUMPV_RELEASE: ${{ needs.resolve.outputs.rumpv_release }}
+          YTDLP_RELEASE: ${{ needs.resolve.outputs.ytdlp_release }}
+          VAPOURSYNTH_RELEASE: ${{ needs.resolve.outputs.vapoursynth_release }}
+          VSMLRT_RELEASE: ${{ needs.resolve.outputs.vsmlrt_release }}
           INCLUDE_VSNV: ${{ needs.resolve.outputs.include_vsnv }}
         run: |
           $ErrorActionPreference = 'Stop'
           $deps = Join-Path $env:GITHUB_WORKSPACE '_deps'
           New-Item -ItemType Directory -Path $deps -Force | Out-Null
-
-          function Download-ReleaseAsset([string] $Repository, [string] $Release, [string] $Pattern, [string] $Directory) {
-            New-Item -ItemType Directory -Path $Directory -Force | Out-Null
-            $arguments = @('release', 'download')
-            if ($Release -ne 'latest') {
-              $arguments += $Release
-            }
-            $arguments += @('--repo', $Repository, '--pattern', $Pattern, '--dir', $Directory, '--clobber')
-            & gh @arguments
-            if ($LASTEXITCODE -ne 0) {
-              throw "Could not download $Pattern from $Repository ($Release)"
-            }
+          function Get-Asset([string] $Repo, [string] $Release, [string] $Pattern, [string] $Dir) {
+            New-Item -ItemType Directory -Path $Dir -Force | Out-Null
+            $a = @('release', 'download')
+            if ($Release -ne 'latest') { $a += $Release }
+            $a += @('--repo', $Repo, '--pattern', $Pattern, '--dir', $Dir, '--clobber')
+            & gh @a
+            if ($LASTEXITCODE -ne 0) { throw "Could not download $Pattern from $Repo ($Release)" }
           }
-
-          $baseDir = Join-Path $deps 'base'
-          Download-ReleaseAsset $env:BASE_REPOSITORY $env:BASE_RELEASE "mpv-lazy-$($env:BASE_RELEASE)-noVS.7z" $baseDir
-          Download-ReleaseAsset $env:BASE_REPOSITORY $env:BASE_RELEASE "mpv-lazy-$($env:BASE_RELEASE).exe" $baseDir
-          Download-ReleaseAsset $env:MPV_REPOSITORY $env:MPV_RELEASE 'mpv-x86_64-v3-*.7z' (Join-Path $deps 'mpv')
-          Download-ReleaseAsset $env:RUMPV_REPOSITORY $env:RUMPV_RELEASE 'umpv.exe' (Join-Path $deps 'rumpv')
-          Download-ReleaseAsset $env:YTDLP_REPOSITORY $env:YTDLP_RELEASE 'yt-dlp.exe' (Join-Path $deps 'yt-dlp')
-
+          Get-Asset $env:MPV_REPOSITORY $env:MPV_RELEASE 'mpv-x86_64-v3-*.7z' (Join-Path $deps 'mpv')
+          Get-Asset $env:RUMPV_REPOSITORY $env:RUMPV_RELEASE 'umpv.exe' (Join-Path $deps 'rumpv')
+          Get-Asset $env:YTDLP_REPOSITORY $env:YTDLP_RELEASE 'yt-dlp.exe' (Join-Path $deps 'yt-dlp')
+          Get-Asset $env:VAPOURSYNTH_REPOSITORY $env:VAPOURSYNTH_RELEASE 'VapourSynth64-Portable-*.zip' (Join-Path $deps 'vapoursynth')
+          Get-Asset $env:K7SFUNC_REPOSITORY latest 'k7sfunc-*.whl' (Join-Path $deps 'k7sfunc')
+          Get-Asset $env:VSMLRT_REPOSITORY $env:VSMLRT_RELEASE 'scripts.*.7z' (Join-Path $deps 'vs-cpu')
+          Get-Asset $env:VSMLRT_REPOSITORY $env:VSMLRT_RELEASE 'vsmlrt-windows-x64-cpu.*.7z' (Join-Path $deps 'vs-cpu')
           if ($env:INCLUDE_VSNV -eq 'true') {
-            Download-ReleaseAsset $env:BASE_REPOSITORY $env:BASE_RELEASE "mpv-lazy-$($env:BASE_RELEASE)-vsNV.7z.001" $baseDir
-            Download-ReleaseAsset $env:BASE_REPOSITORY $env:BASE_RELEASE "mpv-lazy-$($env:BASE_RELEASE)-vsNV.7z.002" $baseDir
+            Get-Asset $env:VSMLRT_REPOSITORY $env:VSMLRT_RELEASE 'vsmlrt-windows-x64-cuda.*.7z.*' (Join-Path $deps 'vs-nv')
           }
-
-          Get-ChildItem -LiteralPath $deps -File -Recurse | Sort-Object FullName | ForEach-Object {
-            Write-Host "$($_.FullName) ($($_.Length) bytes)"
-          }
-
+          Get-ChildItem -LiteralPath $deps -File -Recurse | Sort-Object FullName | ForEach-Object { Write-Host "$($_.FullName) ($($_.Length) bytes)" }
       - name: Build Windows packages
         shell: pwsh
         env:
           RELEASE_TAG: ${{ needs.resolve.outputs.version }}
-          BASE_RELEASE: ${{ needs.resolve.outputs.base_release }}
           INCLUDE_VSNV: ${{ needs.resolve.outputs.include_vsnv }}
         run: |
           $ErrorActionPreference = 'Stop'
           $root = $env:GITHUB_WORKSPACE
           $deps = Join-Path $root '_deps'
-          $baseDir = Join-Path $deps 'base'
-          $mpvArchive = Get-ChildItem -LiteralPath (Join-Path $deps 'mpv') -Filter 'mpv-x86_64-v3-*.7z' -File | Select-Object -First 1
-          if ($null -eq $mpvArchive) { throw 'mpv archive was not downloaded' }
-
-          $mpvRoot = Join-Path $deps 'mpv-unpacked'
-          New-Item -ItemType Directory -Path $mpvRoot -Force | Out-Null
-          & 7z x -y "-o$mpvRoot" $mpvArchive.FullName
-          if ($LASTEXITCODE -ne 0) { throw 'Could not extract the mpv archive' }
-
-          $umpvPath = (Get-ChildItem -LiteralPath (Join-Path $deps 'rumpv') -Filter 'umpv.exe' -File -Recurse | Select-Object -First 1).FullName
-          $ytDlpPath = (Get-ChildItem -LiteralPath (Join-Path $deps 'yt-dlp') -Filter 'yt-dlp.exe' -File -Recurse | Select-Object -First 1).FullName
-          if ([string]::IsNullOrWhiteSpace($umpvPath)) { throw 'umpv.exe was not downloaded' }
-          if ([string]::IsNullOrWhiteSpace($ytDlpPath)) { throw 'yt-dlp.exe was not downloaded' }
-
-          $sfxModule = Join-Path ${env:ProgramFiles} '7-Zip\7z.sfx'
-          if (-not (Test-Path -LiteralPath $sfxModule -PathType Leaf)) {
-            $sevenZip = (Get-Command 7z -ErrorAction Stop).Source
-            $sfxModule = Join-Path (Split-Path -Parent $sevenZip) '7z.sfx'
-          }
-          if (-not (Test-Path -LiteralPath $sfxModule -PathType Leaf)) { throw '7z.sfx was not found' }
-
-          $baseNoVs = (Get-ChildItem -LiteralPath $baseDir -Filter "mpv-lazy-$($env:BASE_RELEASE)-noVS.7z" -File | Select-Object -First 1).FullName
-          $baseFull = (Get-ChildItem -LiteralPath $baseDir -Filter "mpv-lazy-$($env:BASE_RELEASE).exe" -File | Select-Object -First 1).FullName
-          if ([string]::IsNullOrWhiteSpace($baseNoVs)) { throw 'Base noVS archive was not downloaded' }
-          if ([string]::IsNullOrWhiteSpace($baseFull)) { throw 'Base standard executable was not downloaded' }
-
-          $vsNvArchives = @()
-          if ($env:INCLUDE_VSNV -eq 'true') {
-            $vsNvArchives = @(Get-ChildItem -LiteralPath $baseDir -Filter "mpv-lazy-$($env:BASE_RELEASE)-vsNV.7z.*" -File | Sort-Object Name | ForEach-Object FullName)
-            if ($vsNvArchives.Count -lt 2) { throw 'Both vsNV archive volumes were not downloaded' }
-          }
-
-          $arguments = @(
-            '-NoProfile',
-            '-ExecutionPolicy', 'Bypass',
-            '-File', (Join-Path $root 'packaging/build-release.ps1'),
-            '-SourceRoot', $root,
-            '-StandardConfigRoot', (Join-Path $root 'packaging/portable_config'),
-            '-PlatformPatch', (Join-Path $root 'packaging/windows.patch'),
-            '-BaseNoVsArchive', $baseNoVs,
-            '-BaseFullArchive', $baseFull,
-            '-OutputDirectory', (Join-Path $root 'dist'),
-            '-Version', $env:RELEASE_TAG,
-            '-Platform', 'windows',
-            '-MpvRoot', $mpvRoot,
-            '-UmpvPath', $umpvPath,
-            '-YtDlpPath', $ytDlpPath,
-            '-SfxModule', $sfxModule
-          )
-          if ($env:INCLUDE_VSNV -eq 'true') {
-            $arguments += '-VsNvArchives'
-            $arguments += $vsNvArchives
-            $arguments += '-IncludeVsNv'
-          }
-          & pwsh @arguments
+          $mpv = Get-ChildItem (Join-Path $deps 'mpv') -Filter 'mpv-x86_64-v3-*.7z' -File | Select-Object -First 1
+          $umpv = Get-ChildItem (Join-Path $deps 'rumpv') -Filter 'umpv.exe' -File -Recurse | Select-Object -First 1
+          $ytdlp = Get-ChildItem (Join-Path $deps 'yt-dlp') -Filter 'yt-dlp.exe' -File -Recurse | Select-Object -First 1
+          $vs = Get-ChildItem (Join-Path $deps 'vapoursynth') -Filter 'VapourSynth64-Portable-*.zip' -File | Select-Object -First 1
+          $k7 = Get-ChildItem (Join-Path $deps 'k7sfunc') -Filter 'k7sfunc-*.whl' -File | Select-Object -First 1
+          $cpu = @(Get-ChildItem (Join-Path $deps 'vs-cpu') -Filter '*.7z' -File | Sort-Object Name | ForEach-Object FullName)
+          $nv = @()
+          if ($env:INCLUDE_VSNV -eq 'true') { $nv = @(Get-ChildItem (Join-Path $deps 'vs-nv') -Filter '*.7z.001' -File | Sort-Object Name | ForEach-Object FullName) }
+          foreach ($asset in @($mpv, $umpv, $ytdlp, $vs, $k7)) { if ($null -eq $asset) { throw 'A required external asset is missing' } }
+          if ($cpu.Count -eq 0) { throw 'No CPU vs-mlrt archive was downloaded' }
+          $sfx = Join-Path ${env:ProgramFiles} '7-Zip\7z.sfx'
+          if (-not (Test-Path $sfx)) { $seven = (Get-Command 7z).Source; $sfx = Join-Path (Split-Path -Parent $seven) '7z.sfx' }
+          if (-not (Test-Path $sfx)) { throw '7z.sfx was not found' }
+          $args = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $root 'packaging/build-windows-release.ps1'),'-SourceRoot',$root,'-CommonConfigRoot',(Join-Path $root 'common-config'),'-WindowsPatch',(Join-Path $root 'packaging/windows.patch'),'-MpvArchive',$mpv.FullName,'-UmpvPath',$umpv.FullName,'-YtDlpPath',$ytdlp.FullName,'-VapourSynthArchive',$vs.FullName,'-K7sfuncWheel',$k7.FullName,'-VsCpuArchives')
+          $args += $cpu
+          if ($env:INCLUDE_VSNV -eq 'true') { $args += '-VsNvArchives'; $args += $nv; $args += '-IncludeVsNv' }
+          $args += @('-PythonRoot',(Split-Path -Parent (Get-Command python).Source),'-OutputDirectory',(Join-Path $root 'dist'),'-Version',$env:RELEASE_TAG,'-SfxModule',$sfx)
+          & pwsh @args
           if ($LASTEXITCODE -ne 0) { throw 'Windows package build failed' }
-
-      - name: Upload Windows assets to draft release
+      - name: Upload Windows assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.resolve.outputs.version }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $assets = @(Get-ChildItem -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'dist') -File | ForEach-Object FullName)
-          if ($assets.Count -eq 0) { throw 'No Windows release assets were built' }
+          $assets = @(Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'dist') -File | ForEach-Object FullName)
+          if ($assets.Count -eq 0) { throw 'No Windows assets were built' }
           & gh release upload $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --clobber @assets
-          if ($LASTEXITCODE -ne 0) { throw 'Windows release asset upload failed' }
+          if ($LASTEXITCODE -ne 0) { throw 'Windows upload failed' }
 
   build-linux:
-    needs: resolve
+    needs: [resolve, build-common]
     if: needs.resolve.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Ensure Linux patch tool
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! command -v patch >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y patch
-          fi
-
+      - uses: actions/download-artifact@v4
+        with:
+          name: common-config
+          path: common-config
       - name: Build Linux configuration package
-        shell: bash
         env:
           RELEASE_TAG: ${{ needs.resolve.outputs.version }}
         run: |
           set -euo pipefail
           bash packaging/build-linux-config.sh \
             --source-root "$GITHUB_WORKSPACE" \
-            --standard-config-root "$GITHUB_WORKSPACE/packaging/portable_config" \
+            --common-config-root "$GITHUB_WORKSPACE/common-config" \
             --platform-patch "$GITHUB_WORKSPACE/packaging/linux.patch" \
             --output-directory "$GITHUB_WORKSPACE/dist" \
             --version "$RELEASE_TAG"
-
-      - name: Upload Linux assets to draft release
-        shell: bash
+      - name: Upload Linux assets
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.resolve.outputs.version }}
         run: |
           set -euo pipefail
-          assets=("$GITHUB_WORKSPACE"/dist/*)
-          if [[ ! -f "${assets[0]}" ]]; then
-            echo 'No Linux release assets were built' >&2
-            exit 1
-          fi
-          gh release upload "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber \
-            "${assets[@]}"
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber "$GITHUB_WORKSPACE"/dist/*
 
   publish:
     needs: [resolve, build-windows, build-linux]
     if: needs.resolve.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Verify and publish release
-        shell: bash
+      - name: Verify and publish
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.resolve.outputs.version }}
@@ -380,36 +325,14 @@ jobs:
           INCLUDE_VSNV: ${{ needs.resolve.outputs.include_vsnv }}
         run: |
           set -euo pipefail
-          assets="$(gh release view "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --json assets \
-            --jq '.assets[].name')"
-
-          for required in \
-            "mpv-lazy-$RELEASE_TAG-noVS.7z" \
-            "mpv-lazy-$RELEASE_TAG.exe" \
-            "mpv-lazy-$RELEASE_TAG-linux-config.tar.gz" \
-            'BUILD-METADATA-windows.txt' \
-            'SHA256SUMS-windows.txt' \
-            'BUILD-METADATA-linux.txt' \
-            'SHA256SUMS-linux.txt'; do
-            if ! grep -Fxq "$required" <<<"$assets"; then
-              echo "Missing release asset: $required" >&2
-              exit 1
-            fi
+          assets="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          for required in "mpv-lazy-$RELEASE_TAG-noVS.7z" "mpv-lazy-$RELEASE_TAG.exe" "mpv-lazy-$RELEASE_TAG-linux-config.tar.gz" BUILD-METADATA-windows.txt SHA256SUMS-windows.txt BUILD-METADATA-linux.txt SHA256SUMS-linux.txt; do
+            grep -Fxq "$required" <<<"$assets" || { echo "Missing release asset: $required" >&2; exit 1; }
           done
-
-          if [[ "$INCLUDE_VSNV" == true ]]; then
-            for required in \
-              "mpv-lazy-$RELEASE_TAG-vsNV.7z.001" \
-              "mpv-lazy-$RELEASE_TAG-vsNV.7z.002"; do
-              if ! grep -Fxq "$required" <<<"$assets"; then
-                echo "Missing release asset: $required" >&2
-                exit 1
-              fi
-            done
+          if [[ "$INCLUDE_VSNV" == true ]] && ! grep -Eq "^mpv-lazy-$RELEASE_TAG-vsNV\.7z\.[0-9]+$" <<<"$assets"; then
+            echo 'Missing vsNV volume assets' >&2
+            exit 1
           fi
-
           if [[ "$RELEASE_KIND" == pre ]]; then
             gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease
           else
