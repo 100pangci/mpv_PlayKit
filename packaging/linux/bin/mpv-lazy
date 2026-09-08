@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+script_directory=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+package_root=$(CDPATH= cd -- "$script_directory/.." && pwd)
+mpv_executable=${MPV_LAZY_MPV:-mpv}
+
+exec "$script_directory/run-vapoursynth" "$mpv_executable" \
+    --config-dir="$package_root/portable_config" "$@"

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+script_directory=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+export MPV_LAZY_VS_BACKEND=cuda
+exec "$script_directory/mpv-lazy" "$@"

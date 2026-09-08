@@ -25,6 +25,33 @@ _从萌新到大白，<s>用前嫌麻烦</s> 用后真香_
 下载请见 [**🏷发布版块 Releases🏷**](../../releases)  
 反馈前往 [**💬讨论版块 Discussions🗨️**](../../discussions)
 
+## Linux 包
+
+GitHub Actions 也会随同 Windows 发布 Linux 包。仓库中的
+`packaging/portable_config` 是 Windows/Linux 共用的标准配置来源。构建时先从 fork
+复制这组配置，再从原始项目取得需要的外部辅助文件，最后 Windows 应用
+`packaging/windows.patch`、Linux 应用 `packaging/linux.patch`。
+
+Linux 发布包含配置包和带 CPU VapourSynth/ORT/MVTools runtime 的 `linux-vs` 包；可选的
+`linux-vs-cuda` 是 NVIDIA CUDA provider 叠加包。mpv 和 yt-dlp 不捆绑，用户按发行版自行
+安装；runtime 包还需要 Python 3.12 或更新版本。例如 Fedora、RHEL 等系统可以先执行：
+
+```bash
+sudo dnf install mpv yt-dlp
+```
+
+配置包解压后，把其中的 `portable_config` 复制到 `~/.config/mpv/`。runtime 包应使用其中
+的 `bin/mpv-lazy` 启动器；CUDA 叠加包解压到同一目录后使用 `bin/mpv-lazy-cuda`。
+
+## 自动发布
+
+`.github/workflows/build-release.yml` 会在每周日生成一次 GitHub pre-release，并在每月
+1 日生成一次正式 release。Linux 发布配置包、CPU runtime 包和可选 CUDA 叠加包；Windows
+同时发布 noVS、标准版和 vsNV 叠加包。Linux 包不捆绑播放器二进制，用户自行安装 mpv 和
+yt-dlp。Windows 的 mpv、umpv、yt-dlp、VapourSynth、K7sfunc 和 vs-mlrt 均从各自的原始
+项目 release 下载；Windows 另外以原作者懒人包 release 提供的模型和 vsNV overlay
+作为兼容性基线，构建记录会写入每个 release 的元数据文件。
+
 ## 预览
 
 ![](https://github.com/hooke007/mpv_PlayKit/blob/lite/Temp/mpv-lazy-lite.png)  

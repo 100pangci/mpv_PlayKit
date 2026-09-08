@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+script_directory=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+package_root=$(CDPATH= cd -- "$script_directory/.." && pwd)
+exec "$script_directory/run-vapoursynth" "$package_root/python/vapoursynth/vspipe" "$@"

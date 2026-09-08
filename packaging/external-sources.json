@@ -1,0 +1,114 @@
+{
+  "description": "External sources used when assembling a release. The checked-out fork remains the source of truth for the common mpv configuration.",
+  "common_config": {
+    "uosc": {
+      "repository": "tomasklaen/uosc",
+      "asset": "uosc.zip",
+      "copy": [
+        "scripts/uosc/bin/ziggy-windows.exe",
+        "scripts/uosc/bin/ziggy-linux"
+      ]
+    }
+  },
+  "windows_runtime": {
+    "mpv": {
+      "repository": "zhongfly/mpv-winbuild",
+      "asset_pattern": "mpv-x86_64-v3-*.7z"
+    },
+    "umpv": {
+      "repository": "LumeCraft-Labs/rumpv",
+      "asset": "umpv.exe"
+    },
+    "yt_dlp": {
+      "repository": "yt-dlp/yt-dlp",
+      "asset": "yt-dlp.exe"
+    },
+    "vapoursynth": {
+      "repository": "vapoursynth/vapoursynth",
+      "asset_pattern": "VapourSynth64-Portable-*.zip"
+    },
+    "k7sfunc": {
+      "repository": "LumeCraft-Labs/K7sfunc",
+      "asset_pattern": "k7sfunc-*.whl"
+    },
+    "original_package": {
+      "repository": "hooke007/mpv_PlayKit",
+      "release": "20260510",
+      "purpose": "Preserve the original Windows models and the complete vsNV overlay",
+      "standard_model_asset": "mpv-lazy-*.exe",
+      "standard_models": [
+        "vs-plugins/models/rife_v2/rife_v4.6.onnx",
+        "vs-plugins/models/drba/distilDRBA_v2_lite_scale_ap_fp16.onnx",
+        "vs-plugins/models/the_database_AnimeJaNaiV2L1_x2_fp16_op17.onnx"
+      ],
+      "vsnv_assets": "mpv-lazy-*-vsNV.7z.*",
+      "vsnv_models": [
+        "vs-plugins/models/drba/distilDRBA_v2_lite_ap.onnx"
+      ]
+    },
+    "akarin": {
+      "repository": "AkarinVS/vapoursynth-plugin",
+      "release": "v0.96",
+      "asset": "akarin-release-lexpr-amd64-v0.96g3.7z",
+      "members": [
+        "akarin.dll"
+      ]
+    },
+    "mvtools": {
+      "repository": "dubhatervapoursynth/vapoursynth-mvtools",
+      "release": "v24",
+      "asset": "vapoursynth-mvtools-v24-win64.7z",
+      "members": [
+        "libmvtools.dll"
+      ]
+    },
+    "vs_mlrt": {
+      "repository": "AmusementClub/vs-mlrt",
+      "standard_assets": [
+        "scripts.*.7z",
+        "VSORT-Windows-x64.*.7z",
+        "VSOV-Windows-x64.*.7z",
+        "VSNCNN-Windows-x64.*.7z"
+      ],
+      "raw_vsnv_assets": [
+        "vsmlrt-windows-x64-cuda.*.7z.*",
+        "VSTRT-Windows-x64.*.7z",
+        "VSTRT-RTX-Windows-x64.*.7z"
+      ]
+    }
+  },
+  "linux_runtime": {
+    "python": {
+      "minimum": "3.12"
+    },
+    "pypi": {
+      "vapoursynth": "79",
+      "k7sfunc": "1.8.1",
+      "vapoursynth-mlrt-ort": "16.2",
+      "vapoursynth-mvtools": "29",
+      "vapoursynth-mlrt-ort-cuda": "16.2"
+    },
+    "models": {
+      "repository": "AmusementClub/vs-mlrt",
+      "asset_pattern": "models.*.7z",
+      "members": [
+        "models/rife/rife_v4.6.onnx"
+      ]
+    },
+    "contrib_models": {
+      "repository": "AmusementClub/vs-mlrt",
+      "asset_pattern": "contrib-models.*.7z",
+      "members": [
+        "models/RealESRGANv2/animejanaiV2L1.onnx"
+      ]
+    },
+    "cuda_dependencies": [
+      "nvidia-cublas",
+      "nvidia-cuda-runtime",
+      "nvidia-cuda-cupti",
+      "nvidia-curand",
+      "nvidia-cudnn-cu13",
+      "nvidia-cuda-nvrtc"
+    ]
+  }
+}

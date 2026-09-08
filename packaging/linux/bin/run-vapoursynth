@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+script_directory=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+package_root=$(CDPATH= cd -- "$script_directory/.." && pwd)
+python_executable=${MPV_LAZY_PYTHON:-python3}
+
+if [[ "$python_executable" != */* ]]; then
+    python_executable=$(command -v "$python_executable" || true)
+fi
+if [[ -z "$python_executable" || ! -x "$python_executable" ]]; then
+    printf 'mpv-lazy: Python 3.12+ was not found; set MPV_LAZY_PYTHON\n' >&2
+    exit 1
+fi
+if ! "$python_executable" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)'; then
+    printf 'mpv-lazy: Python 3.12+ was not found; set MPV_LAZY_PYTHON\n' >&2
+    exit 1
+fi
+
+python_root="$package_root/python"
+vapoursynth_root="$python_root/vapoursynth"
+if [[ ! -f "$vapoursynth_root/libvsscript.so" ]]; then
+    printf 'mpv-lazy: bundled VapourSynth runtime is missing\n' >&2
+    exit 1
+fi
+
+export PYTHONPATH="$python_root${PYTHONPATH:+:$PYTHONPATH}"
+export VSSCRIPT_PATH="$vapoursynth_root/libvsscript.so"
+export LD_LIBRARY_PATH="$vapoursynth_root:$vapoursynth_root/plugins/ort${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export XDG_CONFIG_HOME=${MPV_LAZY_CONFIG_HOME:-$package_root/.config}
+
+mkdir -p "$XDG_CONFIG_HOME"
+if ! "$python_executable" -c 'import vapoursynth' >/dev/null 2>&1; then
+    printf 'mpv-lazy: Python cannot import the bundled VapourSynth package\n' >&2
+    exit 1
+fi
+if ! "$python_executable" -m vapoursynth config >/dev/null; then
+    printf 'mpv-lazy: could not configure the bundled VapourSynth VSScript library\n' >&2
+    exit 1
+fi
+
+if (($# == 0)); then
+    printf 'Usage: %s COMMAND [ARG...]\n' "$0" >&2
+    exit 2
+fi
+exec "$@"

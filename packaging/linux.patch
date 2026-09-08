@@ -1,0 +1,94 @@
+--- a/mpv.conf
++++ b/mpv.conf
+@@ -89,8 +89,8 @@
+  # 音频 #
+  ########
+ 
+- ao = wasapi
+-#audio-device = "wasapi/{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}"
++ ao = pipewire
++#audio-device = "pipewire/{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}"
+ #audio-exclusive = yes
+ 
+  volume = 100   # 注意：此参数当前在 script-opts.conf 文件中存在关联处理（参见 “保存全局属性并恢复” 部分）
+@@ -160,23 +160,23 @@
+ #blend-subtitles = yes
+  sub-hdr-peak = 100
+ 
+- sub-font = "LXGW WenKai Mono Lite"
++ sub-font = "思源黑体 Bold"
+  sub-font-size = 44
+ #sub-scale-with-window = no
+  sub-scale-signs = yes
+  sub-outline-size = 4
+  sub-blur = 1
+- sub-color = "#FFD766"
++ sub-color = "#FFFFFF"
+ #sub-back-color = "#641C1C1C"
+ #sub-shadow-offset = 2
+- sub-use-margins = yes
++ sub-use-margins = no
+ 
+ #sub-ass-use-video-data = aspect-ratio
+ #sub-ass-video-aspect-override  = 16:9
+ 
+ #sub-ass-override = force
+ #sub-ass-scale-with-window = yes
+- sub-ass-force-margins = yes
++ sub-ass-force-margins = no
+ #sub-ass-style-overrides = Fontname=LXGW WenKai Mono Lite
+ 
+  image-subs-hdr-peak = 10000
+@@ -200,5 +200,5 @@
+ 
+  screenshot-tag-colorspace = no
+  screenshot-high-bit-depth = no
+- screenshot-template = "~~desktop/MPV-%P-N%n"
++ screenshot-template = "~/图片/MPV/%P-N%n"
+ 
+--- a/input_uosc.conf
++++ b/input_uosc.conf
+@@ -3,7 +3,7 @@
+ 
+ 
+ #                  script-binding uosc/open-file                         #! 加载 > ※ 文件浏览器
+- Ctrl+Shift+v      update-clipboard text; loadfile ${clipboard/text}     #! 加载 > 剪贴板URL
++ Ctrl+Shift+v      loadfile ${clipboard/text}     #! 加载 > 剪贴板URL
+ #                  script-binding uosc/load-subtitles                    #! 加载 > ※ 导入 字幕轨
+ 
+ #                  script-binding uosc/playlist                          #! 导航 > ※ 播放列表
+@@ -38,1 +38,1 @@
+- @                 vf set vapoursynth="~~/vs/MEMC_RIFE_DML.vpy"          #! VF 滤镜 > 预设 补帧 RIFE_DX12
++ @                 vf set vapoursynth="~~/vs/MEMC_RIFE_ORT.vpy"          #! VF 滤镜 > 预设 补帧 RIFE_ORT
+@@ -39,3 +39,3 @@
+- SHARP             vf set vapoursynth="~~/vs/MEMC_DRBA_DML.vpy"          #! VF 滤镜 > 预设 补帧 DRBA_DX12
+- $                 vf set vapoursynth="~~/vs/MEMC_RIFE_NV.vpy"           #! VF 滤镜 > 预设 补帧 RIFE_RTX (DLC-vsNV)
+- %                 vf set vapoursynth="~~/vs/MEMC_DRBA_NV.vpy"           #! VF 滤镜 > 预设 补帧 DRBA_RTX (DLC-vsNV)
++ SHARP             ignore                                                  #! VF 滤镜 > 预设 DRBA（Linux 不提供）
++ $                 ignore                                                  #! VF 滤镜 > 预设 RIFE_RTX（Linux 不提供）
++ %                 ignore                                                  #! VF 滤镜 > 预设 DRBA_RTX（Linux 不提供）
+@@ -43,2 +43,2 @@
+- ^                 vf set vapoursynth="~~/vs/MIX_UAI_DML.vpy"            #! VF 滤镜 > 预设 自定义AI UAI_DX12
+- &                 vf set vapoursynth="~~/vs/MIX_UAI_NV_TRT.vpy"         #! VF 滤镜 > 预设 自定义AI UAI_RTX (DLC-vsNV)
++ ^                 vf set vapoursynth="~~/vs/MIX_UAI_ORT.vpy"            #! VF 滤镜 > 预设 自定义AI UAI_ORT
++ &                 ignore                                                  #! VF 滤镜 > 预设 自定义AI UAI_RTX（Linux 不提供）
+--- a/script-opts.conf
++++ b/script-opts.conf
+@@ -88,1 +88,1 @@
+- script-opts-append = uosc-default_directory={drives}
++ script-opts-append = uosc-default_directory=~~
+--- a/menu.conf
++++ b/menu.conf
+@@ -4,1 +4,1 @@
+-	剪贴板URL (&C)		update-clipboard text; loadfile ${clipboard/text}; show-text '+ ${clipboard/text}'
++	剪贴板URL (&C)		loadfile ${clipboard/text}; show-text '+ ${clipboard/text}'
+@@ -41,7 +41,3 @@
+-	预设 补帧 RIFE_DX12				vf set vapoursynth="~~/vs/MEMC_RIFE_DML.vpy"
+-	预设 补帧 DRBA_DX12				vf set vapoursynth="~~/vs/MEMC_DRBA_DML.vpy"
+-	预设 补帧 RIFE_RTX (DLC-vsNV)	vf set vapoursynth="~~/vs/MEMC_RIFE_NV.vpy"
+-	预设 补帧 DRBA_RTX (DLC-vsNV)	vf set vapoursynth="~~/vs/MEMC_DRBA_NV.vpy"
++	预设 补帧 RIFE_ORT				vf set vapoursynth="~~/vs/MEMC_RIFE_ORT.vpy"
+ 
+-	预设 自定义AI UAI_DX12				vf set vapoursynth="~~/vs/MIX_UAI_DML.vpy"
+-	预设 自定义AI UAI_RTX (DLC-vsNV)	vf set vapoursynth="~~/vs/MIX_UAI_NV_TRT.vpy"
++	预设 自定义AI UAI_ORT				vf set vapoursynth="~~/vs/MIX_UAI_ORT.vpy"
