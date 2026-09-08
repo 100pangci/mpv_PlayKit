@@ -1,0 +1,164 @@
+--- a/scripts/uosc/elements/Button.lua
++++ b/scripts/uosc/elements/Button.lua
+@@ -36,7 +36,7 @@
+ function Button:render()
+ 	local visibility = self:get_visibility()
+ 	if visibility <= 0 then return end
+-	cursor:zone('primary_down', self, function() self:handle_cursor_click() end)
++	cursor:zone('primary_click', self, function() self:handle_cursor_click() end)
+ 
+ 	local ass = assdraw.ass_new()
+ 	local is_clickable = self.is_clickable and self.on_click ~= nil
+--- a/scripts/uosc/elements/Menu.lua
++++ b/scripts/uosc/elements/Menu.lua
+@@ -1584,7 +1584,7 @@
+ 
+ 						-- Select action on cursor hover
+ 						if self.mouse_nav and get_point_to_rectangle_proximity(cursor, rect) <= 0 then
+-							cursor:zone('primary_down', rect, self:create_action(function(shortcut)
++							cursor:zone('primary_click', rect, self:create_action(function(shortcut)
+ 								self:activate_selected_item(shortcut, true)
+ 							end))
+ 							blur_action_index = false
+--- a/scripts/uosc/elements/TopBar.lua
++++ b/scripts/uosc/elements/TopBar.lua
+@@ -302,7 +302,7 @@
+ 			if left_aligned then title_bx = rect.ax - margin else title_ax = rect.bx + margin end
+ 
+ 			-- Click action
+-			cursor:zone('primary_down', rect, function() mp.command('script-binding uosc/playlist') end)
++			cursor:zone('primary_click', rect, function() mp.command('script-binding uosc/playlist') end)
+ 		end
+ 
+ 		-- Skip rendering titles if there's not enough horizontal space
+@@ -325,7 +325,7 @@
+ 				local title_rect = {ax = ax, ay = title_ay, bx = ax + rect_width, by = by}
+ 
+ 				if options.top_bar_alt_title_place == 'toggle' then
+-					cursor:zone('primary_down', title_rect, function() self:toggle_title() end)
++					cursor:zone('primary_click', title_rect, function() self:toggle_title() end)
+ 				end
+ 
+ 				ass:rect(title_rect.ax, title_rect.ay, title_rect.bx, title_rect.by, {
+@@ -415,7 +415,7 @@
+ 
+ 				-- Click action
+ 				rect.bx = time_bx
+-				cursor:zone('primary_down', rect, function() mp.command('script-binding uosc/chapters') end)
++				cursor:zone('primary_click', rect, function() mp.command('script-binding uosc/chapters') end)
+ 
+ 				title_ay = rect.by + self.title_spacing
+ 			end
+--- a/scripts/uosc/lib/cursor.lua
++++ b/scripts/uosc/lib/cursor.lua
+@@ -4,6 +4,8 @@
+ 	x = math.huge,
+ 	y = math.huge,
+ 	hidden = true,
++	disabled = false,
++	disablers = {}, -- List of ids. When not empty, the cursor handling is disabled.
+ 	distance = 0, -- Distance traveled during current move. Reset by `cursor.distance_reset_timer`.
+ 	last_hover = false, -- Stores `mouse.hover` boolean of the last mouse event for enter/leave detection.
+ 	-- Event handlers that are only fired on zones defined during render loop.
+@@ -404,11 +406,27 @@
+ 	return get_ray_to_rectangle_distance(self.x, self.y, end_x, end_y, rect)
+ end
+ 
++---@param id string
++function cursor:register_disabler(id)
++	self.disablers[#self.disablers + 1] = id
++	if #self.disablers > 0 then
++		cursor.disabled = true
++		self:leave()
++	end
++end
++
++---@param id string
++function cursor:unregister_disabler(id)
++	self.disablers = itable_filter(self.disablers, function(item) return item ~= id end)
++	if #self.disablers == 0 then cursor.disabled = false end
++end
++
+ ---@param event string
+ ---@param shortcut Shortcut
+ ---@param cb? fun(shortcut: Shortcut)
+ function cursor:create_handler(event, shortcut, cb)
+ 	return function()
++		if self.disabled then return end
+ 		if cb then cb(shortcut) end
+ 		self:trigger(event, shortcut)
+ 	end
+@@ -416,7 +434,7 @@
+ 
+ -- Movement
+ local function handle_mouse_pos(_, mouse)
+-	if not mouse then return end
++	if not mouse or cursor.disabled then return end
+ 	if cursor.last_hover and not mouse.hover then
+ 		cursor:leave()
+ 	elseif not (cursor.last_hover == false and mouse.hover == false) then -- filters out duplicate mouse out events
+@@ -426,7 +444,7 @@
+ end
+ 
+ local function handle_touch_pos(_, touches)
+-	if not touches then return end
++	if not touches or cursor.disabled then return end
+ 	local touch = touches[1]
+ 	if touch then
+ 		cursor:move(touch.x, touch.y)
+@@ -466,4 +484,15 @@
+ 	{'wheel_down', cursor:create_handler('wheel_down', create_shortcut('wheel_down'))},
+ }, 'wheel', 'force')
+ 
++-- Monitor mpv UI's and disable uosc's cursor handling when any are open
++-- 已禁用：采用 main.lua / Menu.lua 的互斥方案，故不启用上游的「禁用光标处理」行为
++--mp.observe_property('user-data/mpv/context-menu/open', 'bool', function(_, value)
++--	if value == true then cursor:register_disabler('context-menu')
++--	else cursor:unregister_disabler('context-menu') end
++--end)
++--mp.observe_property('user-data/mpv/console/open', 'bool', function(_, value)
++--	if value == true then cursor:register_disabler('console')
++--	else cursor:unregister_disabler('console') end
++--end)
++
+ return cursor
+--- a/scripts/uosc/lib/utils.lua
++++ b/scripts/uosc/lib/utils.lua
+@@ -54,15 +54,14 @@
+ 
+ 	-- alphanum sorting for humans in Lua
+ 	-- http://notebook.kulchenko.com/algorithms/alphanumeric-natural-sorting-for-humans-in-lua
+-	local function padnum(n, d)
+-		return #d > 0 and ('%03d%s%.12f'):format(#n, n, tonumber(d) / (10 ^ #d))
+-			or ('%03d%s'):format(#n, n)
++	local function padnum(n)
++		return ("%03d%s"):format(#n, n)
+ 	end
+ 
+ 	local function sort_lua(strings)
+ 		local tuples = {}
+ 		for i, f in ipairs(strings) do
+-			tuples[i] = {f:lower():gsub('0*(%d+)%.?(%d*)', padnum), f}
++			tuples[i] = {f:lower():gsub('0*(%d+)', padnum), f}
+ 		end
+ 		table.sort(tuples, function(a, b)
+ 			return a[1] == b[1] and #b[2] < #a[2] or a[1] < b[1]
+--- a/scripts/uosc/main.lua
++++ b/scripts/uosc/main.lua
+@@ -1,6 +1,6 @@
+ --[[
+ SOURCE_ https://github.com/tomasklaen/uosc/tree/main/src/uosc
+-COMMIT_ 99510d50b89e3724b6115d9ef06731e97a50b7cf
++COMMIT_ 41040532f840b8089ae1bedba906071959347771
+ 文档_ https://github.com/hooke007/mpv_PlayKit/discussions/186
+ 
+ 极简主义设计驱动的多功能界面脚本群组，可支持 thumb_engine 或 thumbfast 缩略图引擎
+@@ -820,7 +820,7 @@
+ mp.observe_property('core-idle', 'native', create_state_setter('core_idle'))
+ 
+ -- 互斥1：mpv osd菜单打开时关闭 uosc 菜单
+--- 非互斥版实现 https://github.com/tomasklaen/uosc/commit/95dd6085643f009e8bdb4976fce32a0afc489511
++-- 上游的解决方案 https://github.com/tomasklaen/uosc/commit/1577492f136b41b3a5c47e54dea7275ab7a6fce4
+ mp.observe_property('user-data/mpv/context-menu/open', 'bool', function(_, value)
+ 	if value == true and Menu:is_open() then Menu:close() end
+ end)
