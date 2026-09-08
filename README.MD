@@ -43,8 +43,8 @@ sudo dnf install mpv yt-dlp
 ## 自动发布
 
 `.github/workflows/build-release.yml` 会在每周日生成一次 GitHub pre-release，并在每月
-1 日生成一次正式 release。Windows 发布 noVS、标准版和 vsNV 叠加包；Linux 发布配置
-包，不捆绑播放器二进制。Windows 的 mpv、umpv、yt-dlp、VapourSynth、K7sfunc 和
+1 日生成一次正式 release。Linux 发布配置包；Windows 同时发布 noVS、标准版和 vsNV
+叠加包。Linux 配置包不捆绑播放器二进制，用户自行安装 mpv、yt-dlp 和其它依赖。Windows 的 mpv、umpv、yt-dlp、VapourSynth、K7sfunc 和
 vs-mlrt 均从各自的原始项目 release 下载，手动运行时可以覆盖版本来源；构建记录会
 写入每个 release 的元数据文件。
 
