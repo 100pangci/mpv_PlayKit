@@ -298,9 +298,9 @@ jobs:
             '-SfxModule', $sfxModule
           )
           if ($env:INCLUDE_VSNV -eq 'true') {
-            $arguments += '-IncludeVsNv'
             $arguments += '-VsNvArchives'
             $arguments += $vsNvArchives
+            $arguments += '-IncludeVsNv'
           }
           & pwsh @arguments
           if ($LASTEXITCODE -ne 0) { throw 'Windows package build failed' }
