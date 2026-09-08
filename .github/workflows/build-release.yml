@@ -263,11 +263,27 @@ jobs:
           $sfx = Join-Path ${env:ProgramFiles} '7-Zip\7z.sfx'
           if (-not (Test-Path $sfx)) { $seven = (Get-Command 7z).Source; $sfx = Join-Path (Split-Path -Parent $seven) '7z.sfx' }
           if (-not (Test-Path $sfx)) { throw '7z.sfx was not found' }
-          $args = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $root 'packaging/build-windows-release.ps1'),'-SourceRoot',$root,'-CommonConfigRoot',(Join-Path $root 'common-config'),'-WindowsPatch',(Join-Path $root 'packaging/windows.patch'),'-MpvArchive',$mpv.FullName,'-UmpvPath',$umpv.FullName,'-YtDlpPath',$ytdlp.FullName,'-VapourSynthArchive',$vs.FullName,'-K7sfuncWheel',$k7.FullName,'-VsCpuArchives')
-          $args += $cpu
-          if ($env:INCLUDE_VSNV -eq 'true') { $args += '-VsNvArchives'; $args += $nv; $args += '-IncludeVsNv' }
-          $args += @('-PythonRoot',(Split-Path -Parent (Get-Command python).Source),'-OutputDirectory',(Join-Path $root 'dist'),'-Version',$env:RELEASE_TAG,'-SfxModule',$sfx)
-          & pwsh @args
+          $builder = Join-Path $root 'packaging/build-windows-release.ps1'
+          $builderParameters = @{
+            SourceRoot = $root
+            CommonConfigRoot = (Join-Path $root 'common-config')
+            WindowsPatch = (Join-Path $root 'packaging/windows.patch')
+            MpvArchive = $mpv.FullName
+            UmpvPath = $umpv.FullName
+            YtDlpPath = $ytdlp.FullName
+            VapourSynthArchive = $vs.FullName
+            K7sfuncWheel = $k7.FullName
+            VsCpuArchives = $cpu
+            PythonRoot = (Split-Path -Parent (Get-Command python).Source)
+            OutputDirectory = (Join-Path $root 'dist')
+            Version = $env:RELEASE_TAG
+            SfxModule = $sfx
+          }
+          if ($env:INCLUDE_VSNV -eq 'true') {
+            $builderParameters['VsNvArchives'] = $nv
+            $builderParameters['IncludeVsNv'] = $true
+          }
+          & $builder @builderParameters
           if ($LASTEXITCODE -ne 0) { throw 'Windows package build failed' }
       - name: Upload Windows assets
         shell: pwsh
